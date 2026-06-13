@@ -35,7 +35,7 @@ Notre infrastructure et nos applications sont construites avec des technologies 
 Notre infrastructure est entièrement hébergée sur Amazon Web Services (AWS) et orchestrée par Terraform. Elle repose sur des services managés pour éliminer la maintenance de serveurs et garantir une scalabilité horizontale automatique.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/velyon-core/.github/main/profile/assets/architecture.png" alt="Velyon Cloud Architecture" width="100%" style="border-radius: 8px;">
+  <img src="https://raw.githubusercontent.com/velyon-core/.github/main/profile/assets/architecture_complete.png" alt="Velyon Cloud Architecture" width="100%" style="border-radius: 8px;">
 </p>
 
 ---
