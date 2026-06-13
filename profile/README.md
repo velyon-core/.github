@@ -35,7 +35,7 @@ Notre infrastructure et nos applications sont construites avec des technologies 
 Notre infrastructure est entièrement hébergée sur Amazon Web Services (AWS) et orchestrée par Terraform. Elle repose sur des services managés pour éliminer la maintenance de serveurs et garantir une scalabilité horizontale automatique.
 
 ```mermaid
-graph LR
+graph TB
     %% Core Clients
     Client([Public Clients / Merchants])
     
