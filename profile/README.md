@@ -35,71 +35,67 @@ Notre infrastructure et nos applications sont construites avec des technologies 
 Notre infrastructure est entièrement hébergée sur Amazon Web Services (AWS) et orchestrée par Terraform. Elle repose sur des services managés pour éliminer la maintenance de serveurs et garantir une scalabilité horizontale automatique.
 
 ```mermaid
-graph TB
-    %% Definitions
+graph LR
+    %% Core Clients
     Client([Public Clients / Merchants])
     
-    subgraph Cloudflare_Edge ["Cloudflare Edge Security & CDN"]
+    %% Edge Layer
+    subgraph Edge ["Cloudflare Edge (Security & CDN)"]
         CF_DNS["Cloudflare DNS"]
-        CF_WAF["Cloudflare WAF / DDoS Shield"]
-        CF_CDN["Cloudflare CDN (Edge Caching)"]
+        CF_WAF["Cloudflare WAF / DDoS"]
+        CF_CDN["Cloudflare CDN"]
+        CF_DNS --> CF_WAF --> CF_CDN
     end
 
-    subgraph AWS_Cloud ["AWS Cloud (eu-west-3)"]
+    %% AWS Cloud
+    subgraph AWS ["AWS Cloud Region (eu-west-3)"]
         subgraph VPC ["AWS VPC (Virtual Private Cloud)"]
-            subgraph Public_Subnets ["Public Subnets (Multi-AZ)"]
-                ALB["AWS Application Load Balancer (ALB)"]
+            subgraph Public_Net ["Public Subnet (Multi-AZ)"]
+                ALB["AWS ALB (Load Balancer)"]
             end
             
-            subgraph Private_App_Subnets ["Private Application Subnets"]
-                subgraph ECS_Cluster ["AWS ECS Fargate Cluster"]
-                    Go_API["Go Web Service (API Container)"]
-                    Asynq_Worker["Asynq Background Workers"]
-                end
+            subgraph Private_App ["Private App Subnet"]
+                Go_API["Go Web API (Fargate)"]
+                Workers["Asynq Workers (Fargate)"]
             end
             
-            subgraph Private_Data_Subnets ["Private Data Subnets (Isolated)"]
-                subgraph Aurora_Cluster ["AWS Aurora PostgreSQL (Multi-AZ)"]
-                    DB_Primary[("Aurora Primary (Write)")]
-                    DB_Replica[("Aurora Replica (Read Only)")]
-                end
-                
-                Redis[("AWS ElastiCache Redis (Cache & Queue)")]
-                OpenSearch[("AWS OpenSearch (Analytics & Search)")]
+            subgraph Private_Data ["Private Data Subnet (Isolated)"]
+                DB_Primary[("Aurora PostgreSQL (Writer)")]
+                DB_Replica[("Aurora PostgreSQL (Reader)")]
+                Redis[("ElastiCache Redis (Cache & Queue)")]
+                OpenSearch[("OpenSearch Service (Analytics)")]
             end
         end
         
-        subgraph Storage_Tier ["Storage Layer"]
-            S3[("AWS S3 Bucket (Exports & Proofs)")]
+        subgraph Storage ["Storage Layer"]
+            S3[("AWS S3 Bucket")]
         end
     end
 
-    %% Network flows
-    Client -->|HTTPS / DNS Request| CF_DNS
-    CF_DNS --> CF_WAF
-    CF_WAF --> CF_CDN
-    CF_CDN -->|Proxy HTTPS Traffic| ALB
+    %% Connections
+    Client -->|HTTPS / TLS 1.2+| CF_DNS
+    CF_CDN -->|Proxy Traffic (HTTPS)| ALB
+    ALB -->|Forward HTTP (TCP/80)| Go_API
     
-    ALB -->|Forward Request| Go_API
+    %% Go API dependencies
+    Go_API -->|Auth & Session (TCP/6379)| Redis
+    Go_API -->|Write Transactions (TCP/5432)| DB_Primary
+    Go_API -.->|Read Analytics (TCP/5432)| DB_Replica
+    Go_API -.->|Search Queries (TCP/443)| OpenSearch
+    Go_API -->|Save Files & Proofs (HTTPS)| S3
     
-    %% Application dependencies
-    Go_API -->|Read/Write Session & Cache| Redis
-    Go_API -->|Write Transactions| DB_Primary
-    Go_API -.->|Read Analytics| DB_Replica
-    
-    Asynq_Worker -->|Process Queue Tasks| Redis
-    Asynq_Worker -->|Read/Write Data| DB_Primary
-    Asynq_Worker -->|Index Data| OpenSearch
-    Go_API -.->|Query Search & Analytics| OpenSearch
-    Go_API -->|Store Exports & Files| S3
-    
-    %% Styling
+    %% Workers dependencies
+    Workers -->|Consume Jobs (TCP/6379)| Redis
+    Workers -->|Update Data (TCP/5432)| DB_Primary
+    Workers -->|Index Transactions (TCP/443)| OpenSearch
+
+    %% Custom Styling
     classDef edgeStyle fill:#FFF2E6,stroke:#FF8000,stroke-width:2px;
     classDef awsStyle fill:#F2F5FA,stroke:#FF9900,stroke-width:2px;
     classDef vpcStyle fill:#FFF,stroke:#4A90E2,stroke-width:2px,stroke-dasharray: 5 5;
     
     class CF_DNS,CF_WAF,CF_CDN edgeStyle;
-    class AWS_Cloud awsStyle;
+    class AWS,Storage awsStyle;
     class VPC vpcStyle;
 ```
 
