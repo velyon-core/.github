@@ -34,70 +34,9 @@ Notre infrastructure et nos applications sont construites avec des technologies 
 ### 1. Architecture Infrastructure (AWS Cloud)
 Notre infrastructure est entièrement hébergée sur Amazon Web Services (AWS) et orchestrée par Terraform. Elle repose sur des services managés pour éliminer la maintenance de serveurs et garantir une scalabilité horizontale automatique.
 
-```mermaid
-graph TB
-    %% Core Clients
-    Client([Public Clients / Merchants])
-    
-    %% Edge Layer
-    subgraph Edge ["Cloudflare Edge (Security & CDN)"]
-        CF_DNS["Cloudflare DNS"]
-        CF_WAF["Cloudflare WAF / DDoS"]
-        CF_CDN["Cloudflare CDN"]
-        CF_DNS --> CF_WAF --> CF_CDN
-    end
-
-    %% AWS Cloud
-    subgraph AWS ["AWS Cloud Region (eu-west-3)"]
-        subgraph VPC ["AWS VPC (Virtual Private Cloud)"]
-            subgraph Public_Net ["Public Subnet (Multi-AZ)"]
-                ALB["AWS ALB (Load Balancer)"]
-            end
-            
-            subgraph Private_App ["Private App Subnet"]
-                Go_API["Go Web API (Fargate)"]
-                Workers["Asynq Workers (Fargate)"]
-            end
-            
-            subgraph Private_Data ["Private Data Subnet (Isolated)"]
-                DB_Primary[("Aurora PostgreSQL (Writer)")]
-                DB_Replica[("Aurora PostgreSQL (Reader)")]
-                Redis[("ElastiCache Redis (Cache & Queue)")]
-                OpenSearch[("OpenSearch Service (Analytics)")]
-            end
-        end
-        
-        subgraph Storage ["Storage Layer"]
-            S3[("AWS S3 Bucket")]
-        end
-    end
-
-    %% Connections
-    Client -->|HTTPS / TLS 1.2+| CF_DNS
-    CF_CDN -->|Proxy Traffic HTTPS| ALB
-    ALB -->|Forward HTTP TCP 80| Go_API
-    
-    %% Go API dependencies
-    Go_API -->|Auth & Session TCP 6379| Redis
-    Go_API -->|Write Transactions TCP 5432| DB_Primary
-    Go_API -.->|Read Analytics TCP 5432| DB_Replica
-    Go_API -.->|Search Queries TCP 443| OpenSearch
-    Go_API -->|Save Files & Proofs HTTPS| S3
-    
-    %% Workers dependencies
-    Workers -->|Consume Jobs TCP 6379| Redis
-    Workers -->|Update Data TCP 5432| DB_Primary
-    Workers -->|Index Transactions TCP 443| OpenSearch
-
-    %% Custom Styling
-    classDef edgeStyle fill:#FFF2E6,stroke:#FF8000,stroke-width:2px;
-    classDef awsStyle fill:#F2F5FA,stroke:#FF9900,stroke-width:2px;
-    classDef vpcStyle fill:#FFF,stroke:#4A90E2,stroke-width:2px,stroke-dasharray: 5 5;
-    
-    class CF_DNS,CF_WAF,CF_CDN edgeStyle;
-    class AWS,Storage awsStyle;
-    class VPC vpcStyle;
-```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/velyon-core/.github/main/profile/assets/architecture.png" alt="Velyon Cloud Architecture" width="100%" style="border-radius: 8px;">
+</p>
 
 ---
 
