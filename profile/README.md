@@ -1,6 +1,6 @@
 # 🚀 Velyon Core
 
-Bienvenue sur le hub d'ingénierie de **Velyon Core**, l'équipe technique à l'origine de **NexusyPay** — une passerelle de paiement mobile money hautement performante et résiliente, conçue spécifiquement pour l'Afrique de l'Ouest.
+Bienvenue sur le hub d'ingénierie de **Velyon Core**, l'équipe technique à l'origine d'une passerelle de paiement mobile money hautement performante et résiliente, conçue spécifiquement pour l'Afrique de l'Ouest.
 
 Cette page présente l'architecture globale, la stack technique, les services critiques et les choix d'ingénierie qui garantissent la scalabilité, la sécurité et la haute disponibilité de notre plateforme.
 
