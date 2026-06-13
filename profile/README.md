@@ -28,41 +28,71 @@ Notre infrastructure est entièrement hébergée sur Amazon Web Services (AWS) e
 
 ```mermaid
 graph TB
-    %% Nodes definition with international standards
-    Client([Public Clients / Merchants]) -->|HTTPS / TLS 1.2+| ALB[AWS Application Load Balancer]
+    %% Definitions
+    Client([Public Clients / Merchants])
     
-    subgraph VPC ["AWS VPC (Virtual Private Cloud)"]
-        subgraph Public_Subnets ["Public Subnets"]
-            ALB
-        end
-        
-        subgraph Private_Subnets ["Private Subnets"]
-            subgraph ECS_Cluster ["AWS ECS Fargate Cluster"]
-                Go_API["Go Web Service (API Container)"]
-                Asynq_Worker["Asynq Background Workers"]
+    subgraph Cloudflare_Edge ["Cloudflare Edge Security & CDN"]
+        CF_DNS["Cloudflare DNS"]
+        CF_WAF["Cloudflare WAF / DDoS Shield"]
+        CF_CDN["Cloudflare CDN (Edge Caching)"]
+    end
+
+    subgraph AWS_Cloud ["AWS Cloud (eu-west-3)"]
+        subgraph VPC ["AWS VPC (Virtual Private Cloud)"]
+            subgraph Public_Subnets ["Public Subnets (Multi-AZ)"]
+                ALB["AWS Application Load Balancer (ALB)"]
             end
             
-            subgraph Data_Tier ["Data & Caching Layer"]
-                Redis[(AWS ElastiCache Redis)]
-                PostgreSQL[(AWS Aurora PostgreSQL)]
-                OpenSearch[(AWS OpenSearch Service)]
+            subgraph Private_App_Subnets ["Private Application Subnets"]
+                subgraph ECS_Cluster ["AWS ECS Fargate Cluster"]
+                    Go_API["Go Web Service (API Container)"]
+                    Asynq_Worker["Asynq Background Workers"]
+                end
+            end
+            
+            subgraph Private_Data_Subnets ["Private Data Subnets (Isolated)"]
+                subgraph Aurora_Cluster ["AWS Aurora PostgreSQL (Multi-AZ)"]
+                    DB_Primary[("Aurora Primary (Write)")]
+                    DB_Replica[("Aurora Replica (Read Only)")]
+                end
+                
+                Redis[("AWS ElastiCache Redis (Cache & Queue)")]
+                OpenSearch[("AWS OpenSearch (Analytics & Search)")]
             end
         end
-    end
-    
-    subgraph External_Storage ["Storage Tier"]
-        S3[(AWS S3 Bucket)]
+        
+        subgraph Storage_Tier ["Storage Layer"]
+            S3[("AWS S3 Bucket (Exports & Proofs)")]
+        end
     end
 
     %% Network flows
+    Client -->|HTTPS / DNS Request| CF_DNS
+    CF_DNS --> CF_WAF
+    CF_WAF --> CF_CDN
+    CF_CDN -->|Proxy HTTPS Traffic| ALB
+    
     ALB -->|Forward Request| Go_API
+    
+    %% Application dependencies
     Go_API -->|Read/Write Session & Cache| Redis
-    Go_API -->|Read/Write Transactions| PostgreSQL
+    Go_API -->|Write Transactions| DB_Primary
+    Go_API -.->|Read Analytics| DB_Replica
+    
     Asynq_Worker -->|Process Queue Tasks| Redis
-    Asynq_Worker -->|Read/Write Data| PostgreSQL
+    Asynq_Worker -->|Read/Write Data| DB_Primary
     Asynq_Worker -->|Index Data| OpenSearch
     Go_API -.->|Query Search & Analytics| OpenSearch
     Go_API -->|Store Exports & Files| S3
+    
+    %% Styling
+    classDef edgeStyle fill:#FFF2E6,stroke:#FF8000,stroke-width:2px;
+    classDef awsStyle fill:#F2F5FA,stroke:#FF9900,stroke-width:2px;
+    classDef vpcStyle fill:#FFF,stroke:#4A90E2,stroke-width:2px,stroke-dasharray: 5 5;
+    
+    class CF_DNS,CF_WAF,CF_CDN edgeStyle;
+    class AWS_Cloud awsStyle;
+    class VPC vpcStyle;
 ```
 
 ---
