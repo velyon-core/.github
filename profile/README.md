@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/velyon-core/.github/main/profile/assets/banner.png" alt="Velyon Banner" width="100%" style="border-radius: 10px;">
-</p>
-
 <h1 align="center">🚀 Velyon Core</h1>
 
 <p align="center">
