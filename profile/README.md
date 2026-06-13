@@ -28,35 +28,41 @@ Notre infrastructure est entièrement hébergée sur Amazon Web Services (AWS) e
 
 ```mermaid
 graph TB
-    Client([Clients & Développeurs]) --> |HTTPS / TLS 1.2+| ALB[AWS Application Load Balancer]
-    ALB --> |Routage de trafic| ECS[AWS ECS Fargate Cluster]
+    %% Nodes definition with international standards
+    Client([Public Clients / Merchants]) -->|HTTPS / TLS 1.2+| ALB[AWS Application Load Balancer]
     
-    subgraph ECS Tasks (Conteneurs Serverless)
-        GoAPI[Go 1.25 API Container]
-        AsynqWorker[Asynq Workers Container]
+    subgraph VPC ["AWS VPC (Virtual Private Cloud)"]
+        subgraph Public_Subnets ["Public Subnets"]
+            ALB
+        end
+        
+        subgraph Private_Subnets ["Private Subnets"]
+            subgraph ECS_Cluster ["AWS ECS Fargate Cluster"]
+                Go_API["Go Web Service (API Container)"]
+                Asynq_Worker["Asynq Background Workers"]
+            end
+            
+            subgraph Data_Tier ["Data & Caching Layer"]
+                Redis[(AWS ElastiCache Redis)]
+                PostgreSQL[(AWS Aurora PostgreSQL)]
+                OpenSearch[(AWS OpenSearch Service)]
+            end
+        end
     end
     
-    ECS --> GoAPI
-    ECS --> AsynqWorker
-    
-    subgraph Couche de Données & Cache
-        Redis[(AWS ElastiCache Redis)]
-        Postgres[(AWS Aurora PostgreSQL)]
-        OpenSearch[(AWS OpenSearch)]
-    end
-    
-    GoAPI --> |Vérification Cache & Queue| Redis
-    GoAPI --> |Écriture Transactionnelle| Postgres
-    AsynqWorker --> |Consommation des tâches| Redis
-    AsynqWorker --> |Lecture & Écriture DB| Postgres
-    AsynqWorker --> |Indexation Asynchrone| OpenSearch
-    GoAPI -.-> |Requêtes de recherche Backoffice| OpenSearch
-    
-    subgraph Stockage d'Objets
+    subgraph External_Storage ["Storage Tier"]
         S3[(AWS S3 Bucket)]
     end
-    
-    GoAPI --> |Preuves & Exports CSV| S3
+
+    %% Network flows
+    ALB -->|Forward Request| Go_API
+    Go_API -->|Read/Write Session & Cache| Redis
+    Go_API -->|Read/Write Transactions| PostgreSQL
+    Asynq_Worker -->|Process Queue Tasks| Redis
+    Asynq_Worker -->|Read/Write Data| PostgreSQL
+    Asynq_Worker -->|Index Data| OpenSearch
+    Go_API -.->|Query Search & Analytics| OpenSearch
+    Go_API -->|Store Exports & Files| S3
 ```
 
 ---
@@ -66,34 +72,37 @@ Le code backend en Go suit strictement les principes de la **Clean Architecture*
 
 ```mermaid
 graph TD
-    subgraph HTTP Layer (Présentation)
-        Handlers[HTTP Handlers / Contrôleurs]
-        Middlewares[Middlewares Go]
+    subgraph Presentation_Layer ["Presentation Layer (HTTP API)"]
+        Handlers["HTTP Handlers / Controllers"]
+        Middlewares["Middlewares (Auth, Rate Limit)"]
     end
     
-    subgraph Application Layer (Cas d'utilisation)
-        UseCases[Use Cases / Orchestration Métier]
-        DTOs[Data Transfer Objects]
+    subgraph Application_Layer ["Application Layer (Use Cases)"]
+        UseCases["Use Cases (Business Logic)"]
+        DTOs["Data Transfer Objects (DTOs)"]
     end
     
-    subgraph Domain Layer (Cœur Métier - Pur Go)
-        Entities[Domain Entities]
-        Interfaces[Repository & Provider Interfaces]
+    subgraph Domain_Layer ["Domain Layer (Core Entities)"]
+        Entities["Domain Entities"]
+        Interfaces["Repository & Provider Interfaces"]
     end
     
-    subgraph Infrastructure Layer (Détails Concrets)
-        GORM[PostgreSQL Repository - GORM v2]
-        AsynqQueue[Queue & Cache Client - Redis]
-        PaymentClients[Clients API Opérateurs Mobile Money]
+    subgraph Infrastructure_Layer ["Infrastructure Layer (External Services)"]
+        GORM["PostgreSQL Repository (GORM v2)"]
+        AsynqQueue["Redis Queue & Caching (Asynq)"]
+        PaymentClients["Third-Party Payment Providers"]
     end
     
-    Handlers --> |Appelle| UseCases
-    UseCases --> |Manipule| Entities
-    UseCases --> |Utilise| Interfaces
+    %% Dependency flows (unidirectional pointing inwards)
+    Handlers --> UseCases
+    Middlewares --> Handlers
+    UseCases --> Entities
+    UseCases --> Interfaces
     
-    GORM -.-> |Implémente| Interfaces
-    AsynqQueue -.-> |Implémente| Interfaces
-    PaymentClients -.-> |Implémente| Interfaces
+    %% Implementations (pointing inwards via interface dependency injection)
+    GORM -.->|Implements| Interfaces
+    AsynqQueue -.->|Implements| Interfaces
+    PaymentClients -.->|Implements| Interfaces
 ```
 
 ---
@@ -104,41 +113,44 @@ Pour maintenir un temps de réponse moyen **inférieur à 300 ms** sur l'initiat
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Client as Client API / Marchand
-    participant API as Go API (ECS Fargate)
+    actor Client as API Client / Merchant
+    participant API as Go API Service (Fargate)
     participant Redis as ElastiCache Redis
     participant DB as Aurora PostgreSQL
     participant Queue as Redis Queue (Asynq)
-    participant Prov as Opérateur Mobile Money
+    participant Operator as Mobile Money Operator
 
-    Client->>API: POST /v1/pay-in (Clé API & Payload)
+    Client->>API: POST /v1/pay-in (API Key & Payload)
     
-    critical Validation en Cache (Hot-Path)
-        API->>Redis: Récupérer la clé API & Profil Marchand (TTL 5m)
-        Redis-->>API: Profil valide
-        API->>Redis: Récupérer le statut du provider & limites (TTL 10m)
-        Redis-->>API: Méthode disponible
-        API->>Redis: Vérifier le solde actuel du Wallet (TTL 30s)
-        Redis-->>API: Solde suffisant
+    rect rgb(240, 240, 240)
+        note over API, Redis: 1. Hot-Path Validation & Caching
+        API->>Redis: Get API Key / Client Profile (TTL 5m)
+        Redis-->>API: Valid Profile
+        API->>Redis: Get Payment Method Status (TTL 10m)
+        Redis-->>API: Method Available
+        API->>Redis: Check Wallet Balance & Limits (TTL 30s)
+        Redis-->>API: Balance Valid
     end
     
-    critical Écriture Atomique Base de Données
-        API->>DB: Écrire la transaction (PENDING) + Ajuster le solde Wallet
-        DB-->>API: Succès (Génération UUID v7 & Réf NanoID)
+    rect rgb(240, 240, 240)
+        note over API, DB: 2. Atomic Database Transaction
+        API->>DB: Create Transaction (PENDING) & Update Wallet
+        DB-->>API: Success (UUID v7 & NanoID Ref)
     end
     
-    API->>Redis: Invalider le cache du solde Wallet
+    API->>Redis: Invalidate Wallet Balance Cache
     
-    critical Enrôlement Asynchrone du Job
-        API->>Queue: Enfiler le job d'appel opérateur (Priorité : Critique)
-        Queue-->>API: Job planifié
+    rect rgb(240, 240, 240)
+        note over API, Queue: 3. Async Task Delegation
+        API->>Queue: Enqueue Provider Pay-in Job (Critical Priority)
+        Queue-->>API: Job Enqueued
     end
     
-    API-->>Client: 201 Created (Référence, Statut: PENDING)
+    API-->>Client: 201 Created (Ref, Status: PENDING)
     
-    note over Queue, Prov: Traitement en tâche de fond par les Workers Asynq
-    Queue->>Prov: Envoyer la requête de débit/crédit (Orange Money, MTN, Wave, etc.)
-    Prov-->>Queue: Statut opérateur de la transaction
+    note over Queue, Operator: Async Background Execution (Asynq Worker)
+    Queue->>Operator: Send debit/credit request (Orange, MTN, Wave...)
+    Operator-->>Queue: Callback / Status Update
 ```
 
 ---
