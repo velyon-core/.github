@@ -74,20 +74,20 @@ graph LR
 
     %% Connections
     Client -->|HTTPS / TLS 1.2+| CF_DNS
-    CF_CDN -->|Proxy Traffic (HTTPS)| ALB
-    ALB -->|Forward HTTP (TCP/80)| Go_API
+    CF_CDN -->|Proxy Traffic HTTPS| ALB
+    ALB -->|Forward HTTP TCP 80| Go_API
     
     %% Go API dependencies
-    Go_API -->|Auth & Session (TCP/6379)| Redis
-    Go_API -->|Write Transactions (TCP/5432)| DB_Primary
-    Go_API -.->|Read Analytics (TCP/5432)| DB_Replica
-    Go_API -.->|Search Queries (TCP/443)| OpenSearch
-    Go_API -->|Save Files & Proofs (HTTPS)| S3
+    Go_API -->|Auth & Session TCP 6379| Redis
+    Go_API -->|Write Transactions TCP 5432| DB_Primary
+    Go_API -.->|Read Analytics TCP 5432| DB_Replica
+    Go_API -.->|Search Queries TCP 443| OpenSearch
+    Go_API -->|Save Files & Proofs HTTPS| S3
     
     %% Workers dependencies
-    Workers -->|Consume Jobs (TCP/6379)| Redis
-    Workers -->|Update Data (TCP/5432)| DB_Primary
-    Workers -->|Index Transactions (TCP/443)| OpenSearch
+    Workers -->|Consume Jobs TCP 6379| Redis
+    Workers -->|Update Data TCP 5432| DB_Primary
+    Workers -->|Index Transactions TCP 443| OpenSearch
 
     %% Custom Styling
     classDef edgeStyle fill:#FFF2E6,stroke:#FF8000,stroke-width:2px;
