@@ -1,8 +1,20 @@
-# 🚀 Velyon Core
+<p align="center">
+  <img src="profile/assets/banner.png" alt="Velyon Banner" width="100%" style="border-radius: 10px;">
+</p>
 
-Bienvenue sur le hub d'ingénierie de **Velyon Core**, l'équipe technique à l'origine d'une passerelle de paiement mobile money hautement performante et résiliente.
+<h1 align="center">🚀 Velyon Core</h1>
 
-Cette page présente l'architecture globale, la stack technique, les services critiques et les choix d'ingénierie qui garantissent la scalabilité, la sécurité et la haute disponibilité de notre plateforme.
+<p align="center">
+  <strong>Engineering high-performance, resilient, and secure financial technology.</strong>
+</p>
+
+<p align="center">
+  Bienvenue sur le hub d'ingénierie de <strong>Velyon Core</strong>, l'équipe technique à l'origine d'une passerelle de paiement mobile money hautement performante et résiliente.
+</p>
+
+<p align="center">
+  Cette page présente l'architecture globale, la stack technique, les services critiques et les choix d'ingénierie qui garantissent la scalabilité, la sécurité et la haute disponibilité de notre plateforme.
+</p>
 
 ---
 
